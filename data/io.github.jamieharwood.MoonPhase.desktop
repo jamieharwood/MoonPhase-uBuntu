@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=MoonPhase
+GenericName=Astronomy Dashboard
+Comment=Moon phase, solar system distances, deep-space probes and LEO data
+Exec=moonphase-ubuntu
+Icon=io.github.jamieharwood.MoonPhase
+Terminal=false
+Categories=Science;Astronomy;GTK;GNOME;
+Keywords=moon;phase;astronomy;planets;iss;aurora;space;
+StartupNotify=true
+StartupWMClass=moonphase-ubuntu

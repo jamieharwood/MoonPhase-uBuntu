@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jamieharwood.MoonPhase</id>
+  <name>MoonPhase</name>
+  <summary>Moon phase and solar system dashboard</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <developer id="io.github.jamieharwood"><name>Jamie Harwood</name></developer>
+  <description>
+    <p>A native GTK4 / libadwaita port of the MoonPhase dashboard: current moon phase,
+    planetary and deep-space probe distances, light travel times, Earth data,
+    aurora Kp index, ISS / LEO data, people in space and a history chart.</p>
+  </description>
+  <launchable type="desktop-id">io.github.jamieharwood.MoonPhase.desktop</launchable>
+  <url type="homepage">https://github.com/jamieharwood/MoonPhase-uBuntu</url>
+  <content_rating type="oars-1.1"/>
+  <releases><release version="1.0.0" date="2026-11-21"/></releases>
+</component>

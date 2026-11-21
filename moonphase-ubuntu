@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Launcher: runs the app from wherever the ``moonphase`` package lives."""
+import os
+import sys
+
+here = os.path.dirname(os.path.realpath(__file__))
+for candidate in (here, "/usr/share/moonphase-ubuntu", os.path.expanduser("~/.local/share/moonphase-ubuntu")):
+    if os.path.isdir(os.path.join(candidate, "moonphase")):
+        sys.path.insert(0, candidate)
+        break
+
+from moonphase.app import main  # noqa: E402
+
+sys.exit(main())
