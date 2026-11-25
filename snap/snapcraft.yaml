@@ -1,0 +1,85 @@
+name: orbitly # snap names are lowercase; register it with 'snapcraft register orbitly'
+title: Orbitly
+base: core24
+version: '1.0.0'
+summary: Moon phase, sunrise and sunset, aurora alerts, the ISS and planets at a glance
+description: |
+  Orbitly shows tonight's Moon and what is happening in the sky, as a native
+  Ubuntu desktop app.
+
+  * Moon phase, illumination, age and days to the next full moon
+  * Sunrise, sunset and daylight hours for your location
+  * NOAA aurora Kp index, with a desktop notification during storms
+  * ISS, Tiangong and Hubble altitudes, Starlink counts and who is in space
+  * Distances to the planets and to Voyager, New Horizons and James Webb
+  * History charts of 35 metrics, with CSV export
+
+  Everything astronomical is calculated on your computer. No account, no ads,
+  no tracking.
+website: https://github.com/jamieharwood/MoonPhase-uBuntu
+source-code: https://github.com/jamieharwood/MoonPhase-uBuntu
+issues: https://github.com/jamieharwood/MoonPhase-uBuntu/issues
+icon: data/io.github.jamieharwood.MoonPhase.svg
+
+grade: stable
+confinement: strict
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  orbitly:
+    # The launcher's "#!/usr/bin/env python3" finds core24's own Python 3.12 (snapcraft doesn't
+    # stage packages the base already has, so there is no $SNAP/usr/bin/python3).
+    command: app/moonphase-ubuntu
+    common-id: io.github.jamieharwood.MoonPhase
+    desktop: usr/share/applications/io.github.jamieharwood.MoonPhase.desktop
+    extensions: [gnome]
+    plugs:
+      - network # live feeds (NOAA, TLEs, people in space) and the optional Awtrix push
+    slots:
+      - dbus-orbitly
+    environment:
+      PYTHONPATH: $SNAP/app:$SNAP/usr/lib/python3/dist-packages
+
+# GTK registers the app on the session bus under its application ID; a strict snap may
+# only own that name if it declares it here.
+slots:
+  dbus-orbitly:
+    interface: dbus
+    bus: session
+    name: io.github.jamieharwood.MoonPhase
+
+parts:
+  # PyGObject and pycairo from the Ubuntu archive, for core24's Python 3.12.
+  # GTK4 and libadwaita come from the gnome extension.
+  python:
+    plugin: nil
+    stage-packages:
+      - python3-gi
+      - python3-gi-cairo
+      - python3-cairo
+
+  # The app itself. Only the package, the launcher and the desktop metadata are staged,
+  # not the rest of the source tree (docs, tests, the .deb in dist/ …).
+  orbitly:
+    plugin: dump
+    source: .
+    organize:
+      moonphase: app/moonphase
+      moonphase-ubuntu: app/moonphase-ubuntu
+    stage:
+      - app
+      - usr/share/applications
+      - usr/share/metainfo
+    override-build: |
+      craftctl default
+      install -Dm644 data/io.github.jamieharwood.MoonPhase.desktop \
+        "$CRAFT_PART_INSTALL/usr/share/applications/io.github.jamieharwood.MoonPhase.desktop"
+      sed -i -e 's|^Exec=.*|Exec=orbitly|' \
+             -e 's|^Icon=.*|Icon=${SNAP}/meta/gui/icon.svg|' \
+        "$CRAFT_PART_INSTALL/usr/share/applications/io.github.jamieharwood.MoonPhase.desktop"
+      install -Dm644 data/io.github.jamieharwood.MoonPhase.metainfo.xml \
+        "$CRAFT_PART_INSTALL/usr/share/metainfo/io.github.jamieharwood.MoonPhase.metainfo.xml"
+      find "$CRAFT_PART_INSTALL" -name __pycache__ -prune -exec rm -rf {} +
