@@ -107,7 +107,7 @@ class Card(Gtk.Box):
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application):
-        super().__init__(application=app, title="MoonPhase")
+        super().__init__(application=app, title="Orbitly")
         self.set_default_size(1180, 860)
         self.app = app
         self.settings = Settings.load()
@@ -161,7 +161,7 @@ class MainWindow(Adw.ApplicationWindow):
         hist.append("Reset History…", "win.reset")
         menu.append_section(None, hist)
         menu.append("Keyboard Shortcuts", "win.show-help-overlay")
-        menu.append("About MoonPhase", "app.about")
+        menu.append("About Orbitly", "app.about")
         mb = Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, tooltip_text="Main menu")
         hb.pack_end(mb)
         hb.pack_end(self.units_dd)
