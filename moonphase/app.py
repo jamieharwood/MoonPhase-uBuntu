@@ -39,7 +39,7 @@ class MoonPhaseApp(Adw.Application):
     def _about(self, *_):
         dlg = Adw.AboutWindow(
             transient_for=self.window,
-            application_name="MoonPhase",
+            application_name="Orbitly",
             application_icon=APP_ID,
             developer_name="Jamie Harwood",
             version=__version__,
@@ -47,7 +47,7 @@ class MoonPhaseApp(Adw.Application):
             issue_url="https://github.com/jamieharwood/MoonPhase-uBuntu/issues",
             license_type=Gtk.License.UNKNOWN,
             comments="Moon phase, solar system distances, deep-space probes, "
-                     "Earth and LEO data — a native Ubuntu port of the MoonPhase dashboard.",
+                     "Earth and LEO data, as a native Ubuntu app.",
         )
         dlg.present()
 
