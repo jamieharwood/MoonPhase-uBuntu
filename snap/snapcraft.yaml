@@ -2,6 +2,8 @@ name: orbitly # snap names are lowercase; register it with 'snapcraft register o
 title: Orbitly
 base: core24
 version: '1.0.0'
+license: MIT
+contact: https://github.com/jamieharwood/MoonPhase-uBuntu/issues
 summary: Moon phase, sunrise and sunset, aurora alerts, the ISS and planets at a glance
 description: |
   Orbitly shows tonight's Moon and what is happening in the sky, as a native
