@@ -15,5 +15,19 @@
   <launchable type="desktop-id">io.github.jamieharwood.MoonPhase.desktop</launchable>
   <url type="homepage">https://github.com/jamieharwood/MoonPhase-uBuntu</url>
   <content_rating type="oars-1.1"/>
-  <releases><release version="1.0.0" date="2026-11-21"/></releases>
+  <releases>
+    <release version="1.1.0" date="2026-11-28">
+      <description>
+        <p>More accurate positions and a clearer dashboard.</p>
+        <ul>
+          <li>Planet, Moon and probe positions are now checked against NASA JPL Horizons</li>
+          <li>The James Webb Space Telescope's distance is fetched live from JPL</li>
+          <li>Exact dates for the next new and full moon</li>
+          <li>Sunrise and sunset times within a couple of minutes of almanac values</li>
+          <li>Redesigned Moon card, plus new Near Earth and Deep Space cards</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-11-21"/>
+  </releases>
 </component>

@@ -74,8 +74,8 @@ cd MoonPhase-uBuntu
 ### Option 3: Debian package
 
 ```bash
-packaging/build-deb.sh                                  # → dist/moonphase-ubuntu_1.0.0_all.deb
-sudo apt install ./dist/moonphase-ubuntu_1.0.0_all.deb
+packaging/build-deb.sh                                  # → dist/moonphase-ubuntu_1.1.0_all.deb
+sudo apt install ./dist/moonphase-ubuntu_1.1.0_all.deb
 moonphase-ubuntu                                        # or launch "MoonPhase" from the app grid
 ```
 
