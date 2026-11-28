@@ -14,7 +14,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
-from . import astro, awtrix, fetchers, history  # noqa: E402
+from . import astro, awtrix, fetchers, history, themes, widgets  # noqa: E402
 from .config import DATA_DIR, Settings  # noqa: E402
 from .widgets import HistoryChart, MoonView, PhaseIcon  # noqa: E402
 
@@ -153,6 +153,10 @@ class MainWindow(Adw.ApplicationWindow):
         provider.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_display(self.get_display(), provider,
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        # Theme palette, above the base styles so it can recolour them.
+        self.theme_provider = Gtk.CssProvider()
+        Gtk.StyleContext.add_provider_for_display(self.get_display(), self.theme_provider,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
 
         self.toasts = Adw.ToastOverlay()
         view = Adw.ToolbarView()
@@ -163,6 +167,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.toasts.set_child(view)
         self.set_content(self.toasts)
 
+        self._apply_theme(self.settings.theme)
         self._open_history()
         self._recompute_local()
         self.refresh()
@@ -186,6 +191,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.units_dd.connect("notify::selected", self._on_units)
 
         menu = Gio.Menu()
+        theme_menu = Gio.Menu()
+        for key, label in themes.CHOICES:
+            item = Gio.MenuItem.new(label, None)
+            item.set_action_and_target_value("win.theme", GLib.Variant.new_string(key))
+            theme_menu.append_item(item)
+        menu.append_submenu("Theme", theme_menu)
         menu.append("Preferences", "win.preferences")
         hist = Gio.Menu()
         hist.append("Populate Past…", "win.populate")
@@ -199,6 +210,12 @@ class MainWindow(Adw.ApplicationWindow):
         hb.pack_end(self.units_dd)
         self.status_lbl = Gtk.Label(css_classes=["dim-label", "caption"])
         hb.pack_end(self.status_lbl)
+
+        current = self.settings.theme if self.settings.theme in dict(themes.CHOICES) else themes.SYSTEM
+        theme_act = Gio.SimpleAction.new_stateful("theme", GLib.VariantType.new("s"),
+                                                  GLib.Variant.new_string(current))
+        theme_act.connect("change-state", self._on_theme)
+        self.add_action(theme_act)
 
         for name, cb in (("preferences", self._show_prefs), ("populate", self._populate),
                          ("export", self._export_csv), ("reset", self._reset_history),
@@ -231,10 +248,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.moon_stack.add_named(self.ascii_lbl, "ascii")
         self.moon_stack.set_visible_child_name(self.settings.moon_style)
         self.moon_card.append(self.moon_stack)
-        self.illum_lbl = Gtk.Label(css_classes=["mp-hero"])
+        self.illum_lbl = Gtk.Label(css_classes=["mp-hero", "mp-moon"])
         self.moon_card.append(self.illum_lbl)
         self.moon_card.append(Gtk.Label(label="ILLUMINATED", css_classes=["mp-hero-label"]))
-        self.phase_lbl = Gtk.Label(css_classes=["mp-big"])
+        self.phase_lbl = Gtk.Label(css_classes=["mp-big", "mp-moon"])
         self.moon_card.append(self.phase_lbl)
 
         cycle = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=4)
@@ -612,6 +629,28 @@ class MainWindow(Adw.ApplicationWindow):
         self.settings.units = UNITS[dd.get_selected()][0]
         self.settings.save()
         self._render()
+
+    def _on_theme(self, action, value):
+        action.set_state(value)
+        self.settings.theme = value.get_string()
+        self.settings.save()
+        self._apply_theme(self.settings.theme)
+
+    def _apply_theme(self, key: str):
+        """Apply a palette from themes.THEMES, or follow the desktop for 'system'."""
+        theme = themes.get(key)
+        manager = Adw.StyleManager.get_default()
+        if theme is None:
+            manager.set_color_scheme(Adw.ColorScheme.DEFAULT)
+            self.theme_provider.load_from_data(b"")
+            widgets.PALETTE.update(moon=widgets.DEFAULT_MOON_RGB, chart=widgets.DEFAULT_CHART_RGB)
+        else:
+            manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK if theme.dark else Adw.ColorScheme.FORCE_LIGHT)
+            self.theme_provider.load_from_data(themes.css(theme).encode())
+            widgets.PALETTE.update(moon=themes.rgb(theme.moon), chart=themes.rgb(theme.accent))
+        for icon in self.phase_icons:
+            icon.queue_draw()
+        self.chart.queue_draw()
 
     def _on_moon_style(self, btn):
         self.settings.moon_style = "ascii" if btn.get_active() else "drawn"

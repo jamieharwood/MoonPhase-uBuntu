@@ -35,6 +35,7 @@ Orbitly shows tonight's Moon and what is happening in the sky, as a native GTK4 
 * Distances and light travel times to the planets, and how far Voyager 1 and 2, New Horizons and James Webb are from Earth
 * Upcoming solstices, perihelion and aphelion
 * History charts of 35 metrics, with CSV export
+* Ten colour themes, or follow your desktop's light and dark style
 
 **Private by design**
 

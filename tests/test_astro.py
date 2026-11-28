@@ -11,7 +11,7 @@ from datetime import date, datetime, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from moonphase import astro, fetchers, history  # noqa: E402
+from moonphase import astro, fetchers, history, themes  # noqa: E402
 
 UTC = timezone.utc
 
@@ -263,6 +263,31 @@ class Fetchers(unittest.TestCase):
             {"spacecraft": "Tiangong", "iss": False}]})
         self.assertEqual((p.total, p.iss_crew), (3, 2))
         self.assertEqual(p.crafts, {"ISS ★": 2, "Tiangong": 1})
+
+
+class Themes(unittest.TestCase):
+    def test_choices(self):
+        keys = [k for k, _ in themes.CHOICES]
+        self.assertEqual(keys[0], themes.SYSTEM)
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(len(themes.THEMES), 10)
+        self.assertIsNone(themes.get(themes.SYSTEM))
+        self.assertIsNone(themes.get("no-such-theme"))
+
+    def test_no_organisation_names(self):
+        banned = ("spacex", "nasa", "blue origin", "rocket lab", "ula", "arianespace", "relativity", "firefly")
+        for t in themes.THEMES:
+            for word in banned:
+                self.assertNotIn(word, f"{t.key} {t.label}".lower().split() if word == "ula" else f"{t.key} {t.label}".lower())
+
+    def test_css_and_contrast(self):
+        for t in themes.THEMES:
+            css = themes.css(t)
+            self.assertIn(f"@define-color window_bg_color {t.bg};", css)
+            self.assertEqual(css.count("{") , css.count("}"))
+        self.assertEqual(themes.on_colour("#ffffff"), "#000000")
+        self.assertEqual(themes.on_colour("#0b3d91"), "#ffffff")
+        self.assertEqual(themes.rgb("#ff8000"), (1.0, 128 / 255, 0.0))
 
 
 class History(unittest.TestCase):

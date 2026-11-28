@@ -31,6 +31,7 @@ class Settings:
     longitude: float = astro.DEFAULT_LONGITUDE
     units: str = "au"                     # au | km | mi
     moon_style: str = "drawn"             # drawn | ascii
+    theme: str = "system"                 # system or a key from themes.THEMES
     history_enabled: bool = True
     history_backend: str = "sqlite"       # sqlite | mongodb
     mongodb_uri: str = "mongodb://localhost:27017/moonphase"
