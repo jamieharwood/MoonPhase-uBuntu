@@ -15,6 +15,11 @@ from gi.repository import Gdk, GLib, Graphene, Gtk  # noqa: E402
 
 TAU = 2 * math.pi
 
+DEFAULT_MOON_RGB = (0.93, 0.86, 0.62)
+DEFAULT_CHART_RGB = (0.21, 0.52, 0.89)
+# Colours the current theme gives the phase strip and the history chart.
+PALETTE = {"moon": DEFAULT_MOON_RGB, "chart": DEFAULT_CHART_RGB}
+
 
 class CairoWidget(Gtk.Widget):
     """Widget drawn with pycairo.
@@ -174,7 +179,7 @@ class PhaseIcon(CairoWidget):
             _lit_path(cr, cx, cy, r, self.phase)
         else:
             cr.new_path()
-        cr.set_source_rgb(0.93, 0.86, 0.62)
+        cr.set_source_rgb(*PALETTE["moon"])
         cr.fill()
         if self.current:
             cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.9)
@@ -256,7 +261,7 @@ class HistoryChart(CairoWidget):
             cr.move_to(x, h - 12)
             cr.show_text(txt)
         # Area + line
-        accent = (0.21, 0.52, 0.89)
+        accent = PALETTE["chart"]
         cr.move_to(*xy(*self.points[0]))
         for ts, v in self.points[1:]:
             cr.line_to(*xy(ts, v))

@@ -21,6 +21,7 @@ It shows the same astronomy data, but as a desktop app instead of a server and b
 Other features:
 
 - **Units**: AU, km or miles (the header dropdown) for Solar System and Deep Space distances. Near-Earth values (the Moon, orbit altitudes, James Webb) are always in km or miles, never AU.
+- **Themes** (main menu → *Theme*): follow the desktop, or pick one of ten palettes from the web dashboard (Classic, Light, Monochrome, Mission Blue, Sky, Neon, Daylight, Indigo, Copper, Gold).
 - **Refresh**: the button, <kbd>F5</kbd> or <kbd>Ctrl</kbd>+<kbd>R</kbd>. Calculated values update every minute. Live feeds are re-fetched every 15 minutes and at 00:01 and 12:01 UTC, as in the original. Cached results are kept (Kp for 15 minutes, James Webb for 1 hour, LEO for 6 hours).
 - **Desktop notifications** for geomagnetic storms (Kp ≥ 5) and for the full moon tonight or tomorrow, at most once every 6 hours per alert.
 - **Awtrix clock push** (optional): sends the same `/api/custom` metrics as the original.
@@ -114,6 +115,7 @@ moonphase/astro.py      deterministic calculations (ported from MoonPhaseModule/
 moonphase/fetchers.py   NOAA Kp, JPL Horizons (JWST), TLE API, people-in-space feeds (stdlib urllib, cached)
 moonphase/history.py    SQLite / MongoDB snapshot stores, CSV, backfill
 moonphase/awtrix.py     optional Awtrix push
+moonphase/themes.py     colour themes (libadwaita colour overrides)
 moonphase/widgets.py    pycairo-drawn moon and history chart
 moonphase/window.py     the libadwaita main window
 moonphase/app.py        Adw.Application entry point
