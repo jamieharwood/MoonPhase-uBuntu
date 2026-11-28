@@ -16,7 +16,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from . import astro, awtrix, fetchers, history  # noqa: E402
 from .config import DATA_DIR, Settings  # noqa: E402
-from .widgets import HistoryChart, MoonView  # noqa: E402
+from .widgets import HistoryChart, MoonView, PhaseIcon  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -28,34 +28,65 @@ CSS = b"""
 .mp-card-title { font-weight: 700; font-size: 1.05em; }
 .mp-key { opacity: 0.75; }
 .mp-value { font-feature-settings: "tnum"; }
-.mp-big { font-size: 1.6em; font-weight: 800; }
-.mp-stat-value { font-size: 1.25em; font-weight: 700; font-feature-settings: "tnum"; }
-.mp-stat-key { font-size: 0.85em; opacity: 0.7; }
+.mp-hero { font-size: 3em; font-weight: 800; font-feature-settings: "tnum"; }
+.mp-hero-label { font-size: 0.75em; letter-spacing: 0.12em; opacity: 0.7; }
+.mp-big { font-size: 1.35em; font-weight: 700; }
 .mp-ascii { font-family: monospace; font-size: 1.1em; }
 .mp-storm { color: @error_color; font-weight: 700; }
+.mp-note { font-size: 0.85em; opacity: 0.7; }
+progressbar.mp-cycle trough, progressbar.mp-cycle progress { min-height: 6px; }
 """
 
+# Lunar-cycle strip, New → Full → New, as phase fractions.
+PHASE_STRIP = [i / 8 for i in range(8)]
+PHASE_FRACTION_BY_NAME = {"New Moon": 0.0, "Waxing Crescent": 0.125, "First Quarter": 0.25,
+                          "Waxing Gibbous": 0.375, "Full Moon": 0.5, "Waning Gibbous": 0.625,
+                          "Last Quarter": 0.75, "Waning Crescent": 0.875}
 
-def _dist_from_au(au: float, units: str) -> str:
+
+def _dist_from_au(au: float, units: str, decimals: int = 3) -> str:
+    """Solar System or Deep Space distance stored in AU, in the chosen units.
+    Planets get 3 decimals in AU, deep-space probes 1."""
+    if au <= 0:
+        return "—"
     if units == "km":
         return f"{au * astro.KM_PER_AU:,.0f} km"
     if units == "mi":
         return f"{au * astro.KM_PER_AU / astro.KM_PER_MILE:,.0f} mi"
-    return f"{au:.4f} AU" if au < 100 else f"{au:.2f} AU"
+    return f"{au:.{decimals}f} AU"
 
 
-def _dist_from_km(km: float, units: str) -> str:
-    if km < 0:
+def _near_km(km: float, units: str) -> str:
+    """Near-Earth distance stored in km (Moon, orbit altitudes, JWST). Never shown
+    in AU, where 0.000003 AU means nothing: the AU setting falls back to km."""
+    if km is None or km <= 0:
         return "—"
-    if units == "au":
-        return f"{km / astro.KM_PER_AU:.6f} AU"
     if units == "mi":
         return f"{km / astro.KM_PER_MILE:,.0f} mi"
     return f"{km:,.0f} km"
 
 
+def _moon_date(when, now: datetime | None = None) -> str:
+    """'24 Dec · 26 days', 'Tomorrow · 25 Dec' or 'Tonight'."""
+    if when is None:
+        return "—"
+    now = now or datetime.now(timezone.utc)
+    days = round((when - now).total_seconds() / 86400)
+    local = when.astimezone()
+    label = f"{local.day} {local.strftime('%b')}"
+    if days <= 0:
+        return "Tonight"
+    if days == 1:
+        return f"Tomorrow · {label}"
+    return f"{label} · {days} days"
+
+
 def _num(v, fmt="{:,}") -> str:
     return "—" if v is None or v < 0 else fmt.format(v)
+
+
+def _count(v) -> str:
+    return f"{v:,}" if v is not None and v > 0 else "—"
 
 
 class Card(Gtk.Box):
@@ -148,7 +179,8 @@ class MainWindow(Adw.ApplicationWindow):
         hb.pack_start(self.spinner)
 
         self.units_dd = Gtk.DropDown.new_from_strings([u[1] for u in UNITS])
-        self.units_dd.set_tooltip_text("Distance units")
+        self.units_dd.set_tooltip_text("Units for Solar System and Deep Space distances "
+                                       "(near-Earth values use km or mi)")
         self.units_dd.set_selected([u[0] for u in UNITS].index(self.settings.units)
                                    if self.settings.units in dict(UNITS) else 0)
         self.units_dd.connect("notify::selected", self._on_units)
@@ -185,15 +217,13 @@ class MainWindow(Adw.ApplicationWindow):
         for side in ("top", "bottom", "start", "end"):
             getattr(flow, f"set_margin_{side}")(16)
 
-        # Moon
+        # Moon (hero)
         self.moon_card = Card("🌙 Moon Phase")
         self.moon_style = Gtk.ToggleButton(label="ASCII", tooltip_text="Show ASCII art instead of the drawn moon")
         self.moon_style.set_active(self.settings.moon_style == "ascii")
         self.moon_style.add_css_class("flat")
         self.moon_style.connect("toggled", self._on_moon_style)
         self.moon_card.header.append(self.moon_style)
-        self.phase_lbl = Gtk.Label(xalign=0.5, css_classes=["mp-big"])
-        self.moon_card.append(self.phase_lbl)
         self.moon_stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
         self.moon_view = MoonView()
         self.ascii_lbl = Gtk.Label(css_classes=["mp-ascii"], halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
@@ -201,57 +231,60 @@ class MainWindow(Adw.ApplicationWindow):
         self.moon_stack.add_named(self.ascii_lbl, "ascii")
         self.moon_stack.set_visible_child_name(self.settings.moon_style)
         self.moon_card.append(self.moon_stack)
-        stats = Gtk.Box(homogeneous=True, spacing=6)
-        self.moon_stats = {}
-        for key, title in (("illum", "Illumination"), ("age", "Age"), ("full", "Full Moon In"), ("dist", "Distance")):
-            b = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            v = Gtk.Label(css_classes=["mp-stat-value"])
-            b.append(v)
-            b.append(Gtk.Label(label=title, css_classes=["mp-stat-key"]))
-            stats.append(b)
-            self.moon_stats[key] = v
-        self.moon_card.append(stats)
+        self.illum_lbl = Gtk.Label(css_classes=["mp-hero"])
+        self.moon_card.append(self.illum_lbl)
+        self.moon_card.append(Gtk.Label(label="ILLUMINATED", css_classes=["mp-hero-label"]))
+        self.phase_lbl = Gtk.Label(css_classes=["mp-big"])
+        self.moon_card.append(self.phase_lbl)
 
-        # Solar system
+        cycle = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=4)
+        cycle_head = Gtk.Box()
+        cycle_head.append(Gtk.Label(label="Lunar cycle", xalign=0, hexpand=True, css_classes=["mp-key"]))
+        self.cycle_day_lbl = Gtk.Label(xalign=1, css_classes=["mp-value"])
+        cycle_head.append(self.cycle_day_lbl)
+        cycle.append(cycle_head)
+        self.cycle_bar = Gtk.ProgressBar(css_classes=["mp-cycle"])
+        cycle.append(self.cycle_bar)
+        strip = Gtk.Box(homogeneous=True)
+        self.phase_icons = [PhaseIcon(p) for p in PHASE_STRIP]
+        for icon in self.phase_icons:
+            icon.set_halign(Gtk.Align.CENTER)
+            strip.append(icon)
+        cycle.append(strip)
+        self.moon_card.append(cycle)
+        for k in ("Next new moon", "Next full moon", "Distance"):
+            self.moon_card.row(k, k, "")
+        self.moon_card.use_grid()
+
+        # Solar system (all distances from the Sun)
         self.sol_card = Card("☀️ Solar System")
-        self.sol_card.row("_h", "Planet", "From Sun", "Light time", header=True)
+        self.sol_card.row("_h", "Sun →", "Distance", "Light travel", header=True)
         for p in ("Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"):
             self.sol_card.row(p, p, "", "")
-        self.sol_card.row("_h2", "From Earth", "", "", header=True)
-        for p in ("Mars", "Jupiter", "Saturn"):
-            self.sol_card.row("geo" + p, p, "", "")
         self.sol_card.use_grid()
-
-        # Probes
-        self.probe_card = Card("🚀 Deep Space Probes")
-        for k in ("Hubble", "James Webb", "Voyager 1", "Voyager 2", "New Horizons"):
-            self.probe_card.row(k, k, "")
-        self.probe_card.row("_h", "Light time from Sun", "", header=True)
-        for k in ("Voyager 1", "Voyager 2"):
-            self.probe_card.row("lt" + k, k, "")
-        self.probe_card.use_grid()
 
         # Earth
         self.earth_card = Card("🌍 Earth")
-        for k in ("Orbital Speed", "Speed (km/h)", "Daylight Hours", "Sunrise (UTC~)", "Sunset (UTC~)",
+        for k in ("Orbital Speed", "Speed", "Daylight Hours", "Sunrise (UTC~)", "Sunset (UTC~)",
                   "Axial Tilt", "Aurora Kp Index", "Location"):
             self.earth_card.row(k, k, "")
         self.earth_card.use_grid()
 
+        # Near Earth: stations, constellations and people in space (rows rebuilt on render)
+        self.near_card = Card("🛰️ Near Earth")
+        self.near_card.use_grid()
+        self.crew_note = Gtk.Label(xalign=0, css_classes=["mp-note"], visible=False)
+        self.near_card.append(self.crew_note)
+
+        # Deep space (distances from Earth)
+        self.deep_card = Card("🚀 Deep Space")
+        for k in ("James Webb (L2)", "Voyager 1", "Voyager 2", "New Horizons"):
+            self.deep_card.row(k, k, "")
+        self.deep_card.use_grid()
+
         # Events
         self.events_card = Card("📅 Upcoming Events")
         self.events_card.use_grid()
-
-        # LEO
-        self.leo_card = Card("🛰️ LEO (Low Earth Orbit)")
-        for k in ("ISS Altitude", "ISS Crew", "Tiangong Altitude", "Hubble Altitude",
-                  "Starlink Satellites", "Amazon Kuiper", "Total in Orbit"):
-            self.leo_card.row(k, k, "")
-        self.leo_card.use_grid()
-
-        # People
-        self.people_card = Card("👨‍🚀 People in Space")
-        self.people_card.use_grid()
 
         # History
         self.hist_card = Card("📊 Historical Data")
@@ -274,8 +307,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.hist_status = Gtk.Label(xalign=0, css_classes=["dim-label", "caption"])
         self.hist_card.append(self.hist_status)
 
-        for c in (self.moon_card, self.sol_card, self.probe_card, self.earth_card,
-                  self.events_card, self.leo_card, self.people_card):
+        for c in (self.moon_card, self.sol_card, self.earth_card,
+                  self.near_card, self.deep_card, self.events_card):
             c.set_size_request(340, -1)
             flow.append(c)
 
@@ -293,7 +326,7 @@ class MainWindow(Adw.ApplicationWindow):
         """Fast deterministic recompute, keeping last live values."""
         s = astro.compute(latitude=self.settings.latitude, longitude=self.settings.longitude)
         if self.snapshot:
-            for k in ("auroraKpIndex", "issAltitudeKm", "tiangongAltitudeKm", "hubbleAltitudeKm",
+            for k in ("auroraKpIndex", "jamesWebbDistanceKm", "issAltitudeKm", "tiangongAltitudeKm", "hubbleAltitudeKm",
                       "starlinkSatelliteCount", "kuiperSatelliteCount", "totalSatellitesInOrbit",
                       "issCrew", "totalPeopleInSpace", "craftOccupancy"):
                 setattr(s, k, getattr(self.snapshot, k))
@@ -356,34 +389,37 @@ class MainWindow(Adw.ApplicationWindow):
         if not s:
             return
         u = self.settings.units
+
+        # Moon
+        self.illum_lbl.set_label(f"{s.moonIlluminationPercent}%")
         self.phase_lbl.set_label(s.moonPhaseName)
         self.moon_view.set_phase(s.moonPhaseFraction)
         self.ascii_lbl.set_label("\n".join(s.moonAsciiArt))
-        self.moon_stats["illum"].set_label(f"{s.moonIlluminationPercent}%")
-        self.moon_stats["age"].set_label(f"{s.moonAgeDays} d")
-        self.moon_stats["full"].set_label("Tonight" if s.daysUntilFullMoon == 0 else f"{s.daysUntilFullMoon} d")
-        self.moon_stats["dist"].set_label(_dist_from_km(s.moonDistanceKm, u))
+        self.cycle_day_lbl.set_label(f"Day {s.moonAgeDays} of {astro.SYNODIC_MONTH:.1f}")
+        self.cycle_bar.set_fraction(max(0.0, min(1.0, s.moonAgeDays / astro.SYNODIC_MONTH)))
+        current = PHASE_FRACTION_BY_NAME.get(s.moonPhaseName, s.moonPhaseFraction)
+        for icon in self.phase_icons:
+            icon.set_current(abs(icon.phase - current) < 1e-6)
+        self.moon_card.set("Next new moon", _moon_date(s.nextNewMoon, s.timestamp))
+        self.moon_card.set("Next full moon", _moon_date(s.nextFullMoon, s.timestamp))
+        self.moon_card.set("Distance", _near_km(s.moonDistanceKm, u))
 
+        # Solar system: Mars/Jupiter/Saturn *DistanceAu are Earth-relative (history,
+        # Awtrix), so the Sun-relative card uses their heliocentric values.
         helio = {"Mercury": s.mercuryDistanceAu, "Venus": s.venusDistanceAu, "Earth": s.sunDistanceAu,
                  "Mars": s.marsHelioAu, "Jupiter": s.jupiterHelioAu, "Saturn": s.saturnHelioAu,
                  "Uranus": s.uranusDistanceAu, "Neptune": s.neptuneDistanceAu, "Pluto": s.plutoDistanceAu}
         for p, au in helio.items():
             self.sol_card.set(p, _dist_from_au(au, u), s.lightTimes.get(p, ""))
-        for p, au in (("Mars", s.marsDistanceAu), ("Jupiter", s.jupiterDistanceAu), ("Saturn", s.saturnDistanceAu)):
-            self.sol_card.set("geo" + p, _dist_from_au(au, u), "")
 
-        self.probe_card.set("Hubble", _dist_from_km(s.hubbleAltitudeKm, "km" if u == "au" else u) + " (alt)"
-                            if s.hubbleAltitudeKm >= 0 else "—")
-        self.probe_card.set("James Webb", _dist_from_km(s.jamesWebbDistanceKm, u))
-        self.probe_card.set("Voyager 1", _dist_from_au(s.voyager1DistanceAu, u))
-        self.probe_card.set("Voyager 2", _dist_from_au(s.voyager2DistanceAu, u))
-        self.probe_card.set("New Horizons", _dist_from_au(s.newHorizonsDistanceAu, u))
-        self.probe_card.set("ltVoyager 1", s.lightTimes["Voyager 1"])
-        self.probe_card.set("ltVoyager 2", s.lightTimes["Voyager 2"])
-
+        # Earth
         e = self.earth_card
-        e.set("Orbital Speed", f"{s.earthSpeedKmPerSec:.2f} km/s")
-        e.set("Speed (km/h)", f"{s.earthSpeedKmPerHour:,.0f} km/h")
+        if u == "mi":
+            e.set("Orbital Speed", f"{s.earthSpeedKmPerSec / astro.KM_PER_MILE:.2f} mi/s")
+            e.set("Speed", f"{s.earthSpeedKmPerHour / astro.KM_PER_MILE:,.0f} mph")
+        else:
+            e.set("Orbital Speed", f"{s.earthSpeedKmPerSec:.2f} km/s")
+            e.set("Speed", f"{s.earthSpeedKmPerHour:,.0f} km/h")
         e.set("Daylight Hours", f"{s.daylightHours:.2f} h")
         e.set("Sunrise (UTC~)", s.sunriseTime)
         e.set("Sunset (UTC~)", s.sunsetTime)
@@ -394,32 +430,42 @@ class MainWindow(Adw.ApplicationWindow):
         (kp_lbl.add_css_class if kp >= 5 else kp_lbl.remove_css_class)("mp-storm")
         e.set("Location", f"{s.latitude:.4f}°, {s.longitude:.4f}°")
 
+        # Near Earth: altitudes always in km (or mi), never AU
+        n = self.near_card
+        n.clear_rows()
+        n.row("_h1", "Stations & telescopes", "Altitude", header=True)
+        n.row("ISS", "ISS", _near_km(s.issAltitudeKm, u))
+        n.row("Tiangong", "Tiangong", _near_km(s.tiangongAltitudeKm, u))
+        n.row("Hubble", "Hubble", _near_km(s.hubbleAltitudeKm, u))
+        n.row("_h2", "Constellations", "Satellites", header=True)
+        n.row("Starlink", "Starlink", _count(s.starlinkSatelliteCount))
+        n.row("Kuiper", "Amazon Kuiper", _count(s.kuiperSatelliteCount))
+        if s.totalSatellitesInOrbit > 0:
+            n.row("Total", "Total in orbit", _count(s.totalSatellitesInOrbit))
+        n.row("_h3", "People in space", _count(s.totalPeopleInSpace), header=True)
+        if s.craftOccupancy:
+            for craft, count in s.craftOccupancy.items():
+                n.row("craft" + craft, craft, str(count))
+        else:
+            n.row("_none", "Waiting for live data…" if self._busy else "Unavailable", "")
+        self.crew_note.set_visible(s.issCrew > 0)
+        self.crew_note.set_label(f"★ aboard the ISS · {s.issCrew} crew" if s.issCrew > 0 else "")
+
+        # Deep space: distances from Earth
+        d = self.deep_card
+        d.set("James Webb (L2)", _near_km(s.jamesWebbDistanceKm, u))
+        d.set("Voyager 1", _dist_from_au(s.voyager1DistanceAu, u, 1))
+        d.set("Voyager 2", _dist_from_au(s.voyager2DistanceAu, u, 1))
+        d.set("New Horizons", _dist_from_au(s.newHorizonsDistanceAu, u, 1))
+
+        # Events, soonest first (the full moon lives on the Moon card)
         ev = self.events_card
         ev.clear_rows()
         events = sorted([("Summer Solstice", s.daysUntilSummerSolstice), ("Winter Solstice", s.daysUntilWinterSolstice),
-                         ("Perihelion", s.daysUntilPerihelion), ("Aphelion", s.daysUntilAphelion),
-                         ("Full Moon", s.daysUntilFullMoon)], key=lambda x: x[1])
-        for name, d in events:
-            ev.row(name, name, "today" if d == 0 else f"{d} day{'s' if d != 1 else ''}")
-
-        km_u = "km" if u == "au" else u
-        L = self.leo_card
-        L.set("ISS Altitude", _dist_from_km(s.issAltitudeKm, km_u))
-        L.set("ISS Crew", _num(s.issCrew))
-        L.set("Tiangong Altitude", _dist_from_km(s.tiangongAltitudeKm, km_u))
-        L.set("Hubble Altitude", _dist_from_km(s.hubbleAltitudeKm, km_u))
-        L.set("Starlink Satellites", _num(s.starlinkSatelliteCount))
-        L.set("Amazon Kuiper", _num(s.kuiperSatelliteCount))
-        L.set("Total in Orbit", _num(s.totalSatellitesInOrbit))
-
-        P = self.people_card
-        P.clear_rows()
-        P.row("_h", "Spacecraft", f"Total: {_num(s.totalPeopleInSpace)}", header=True)
-        if s.craftOccupancy:
-            for craft, n in s.craftOccupancy.items():
-                P.row(craft, craft, str(n))
-        else:
-            P.row("_none", "Waiting for live data…" if self._busy else "Unavailable", "")
+                         ("Perihelion", s.daysUntilPerihelion), ("Aphelion", s.daysUntilAphelion)],
+                        key=lambda x: x[1])
+        for name, days in events:
+            ev.row(name, name, "today" if days == 0 else f"{days} day{'s' if days != 1 else ''}")
 
         self.status_lbl.set_label("Updated " + s.timestamp.astimezone().strftime("%H:%M"))
 
