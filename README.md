@@ -115,3 +115,7 @@ install.sh              per-user installer
   Jupiter and Saturn distances get their own rows; the web table mixed the two kinds.
 - Requests to the TLE API are sent one at a time, because it rejects concurrent
   requests with HTTP 508.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

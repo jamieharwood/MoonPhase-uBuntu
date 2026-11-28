@@ -45,7 +45,7 @@ class MoonPhaseApp(Adw.Application):
             version=__version__,
             website="https://github.com/jamieharwood/MoonPhase-uBuntu",
             issue_url="https://github.com/jamieharwood/MoonPhase-uBuntu/issues",
-            license_type=Gtk.License.UNKNOWN,
+            license_type=Gtk.License.MIT_X11,
             comments="Moon phase, solar system distances, deep-space probes, "
                      "Earth and LEO data, as a native Ubuntu app.",
         )

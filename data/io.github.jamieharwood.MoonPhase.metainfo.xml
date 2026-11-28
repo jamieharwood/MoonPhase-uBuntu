@@ -4,6 +4,7 @@
   <name>Orbitly</name>
   <summary>Moon phase and solar system dashboard</summary>
   <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
   <developer id="io.github.jamieharwood"><name>Jamie Harwood</name></developer>
   <description>
     <p>Orbitly is a native GTK4 / libadwaita astronomy dashboard: current moon phase,
