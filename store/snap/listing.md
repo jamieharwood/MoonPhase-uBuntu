@@ -28,17 +28,17 @@ Orbitly shows tonight's Moon and what is happening in the sky, as a native GTK4 
 
 **What you see**
 
-* Moon phase, illumination, age, distance and days to the next full moon
+* Moon phase, illumination and distance, with the exact dates of the next new and full moon
 * Sunrise, sunset and daylight hours for your location
 * NOAA aurora Kp index, with a desktop notification during geomagnetic storms
 * ISS, Tiangong and Hubble altitudes, Starlink and Amazon Kuiper counts, and who is in space right now
-* Distances and light travel times to the planets, Voyager 1 and 2, New Horizons and James Webb
-* Upcoming solstices, perihelion, aphelion and full moon
+* Distances and light travel times to the planets, and how far Voyager 1 and 2, New Horizons and James Webb are from Earth
+* Upcoming solstices, perihelion and aphelion
 * History charts of 35 metrics, with CSV export
 
 **Private by design**
 
-Everything astronomical is calculated on your computer. Orbitly only goes online to fetch the live feeds (aurora, satellites, people in space). No account, no ads, no tracking.
+Planet, Moon and probe positions are calculated on your computer and checked against NASA JPL Horizons. Orbitly only goes online to fetch the live feeds (aurora, satellites, people in space, and James Webb's position from JPL). No account, no ads, no tracking.
 ```
 
 ## Contact information

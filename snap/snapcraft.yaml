@@ -1,7 +1,7 @@
 name: orbitly # snap names are lowercase; register it with 'snapcraft register orbitly'
 title: Orbitly
 base: core24
-version: '1.0.0'
+version: '1.1.0'
 license: MIT
 contact: https://github.com/jamieharwood/MoonPhase-uBuntu/issues
 summary: Moon phase, sunrise and sunset, aurora alerts, the ISS and planets at a glance
@@ -9,15 +9,15 @@ description: |
   Orbitly shows tonight's Moon and what is happening in the sky, as a native
   Ubuntu desktop app.
 
-  * Moon phase, illumination, age and days to the next full moon
+  * Moon phase and illumination, with the exact dates of the next new and full moon
   * Sunrise, sunset and daylight hours for your location
   * NOAA aurora Kp index, with a desktop notification during storms
   * ISS, Tiangong and Hubble altitudes, Starlink counts and who is in space
   * Distances to the planets and to Voyager, New Horizons and James Webb
   * History charts of 35 metrics, with CSV export
 
-  Everything astronomical is calculated on your computer. No account, no ads,
-  no tracking.
+  Planet, Moon and probe positions are calculated on your computer and checked
+  against NASA JPL Horizons. No account, no ads, no tracking.
 website: https://github.com/jamieharwood/MoonPhase-uBuntu
 source-code: https://github.com/jamieharwood/MoonPhase-uBuntu
 issues: https://github.com/jamieharwood/MoonPhase-uBuntu/issues
@@ -39,7 +39,7 @@ apps:
     desktop: usr/share/applications/io.github.jamieharwood.MoonPhase.desktop
     extensions: [gnome]
     plugs:
-      - network # live feeds (NOAA, TLEs, people in space) and the optional Awtrix push
+      - network # live feeds (NOAA, JPL Horizons, TLEs, people in space) and the optional Awtrix push
     slots:
       - dbus-orbitly
     environment:

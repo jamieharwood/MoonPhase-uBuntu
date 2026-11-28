@@ -131,6 +131,58 @@ class MoonView(CairoWidget):
         cr.stroke()
 
 
+def _lit_path(cr, cx, cy, r, phase):
+    """Path of the sunlit part of a disc for a phase fraction (0 new, 0.5 full).
+    Waxing lights the right limb (northern hemisphere view)."""
+    tx = math.cos(TAU * phase)          # terminator x-scale: +1 new … -1 full
+    side = 1 if phase < 0.5 else -1
+    n = 32
+    cr.new_path()
+    for i in range(n + 1):              # limb: top -> bottom on the lit side
+        t = -math.pi / 2 + math.pi * i / n
+        fn = cr.move_to if i == 0 else cr.line_to
+        fn(cx + side * r * math.cos(t), cy + r * math.sin(t))
+    for i in range(n + 1):              # terminator: bottom -> top
+        t = math.pi / 2 - math.pi * i / n
+        cr.line_to(cx + side * tx * r * math.cos(t), cy + r * math.sin(t))
+    cr.close_path()
+
+
+class PhaseIcon(CairoWidget):
+    """One small moon in the lunar-cycle strip; the current phase gets a ring."""
+
+    def __init__(self, phase: float, size: int = 26):
+        super().__init__(size, size)
+        self.phase = phase
+        self.current = False
+
+    def set_current(self, current: bool):
+        if current != self.current:
+            self.current = current
+            self.queue_draw()
+
+    def draw(self, cr, w, h):
+        fg = self.get_color()
+        cx, cy = w / 2, h / 2
+        r = min(w, h) * 0.31
+        cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.18)
+        cr.arc(cx, cy, r, 0, TAU)
+        cr.fill()
+        if abs(self.phase - 0.5) < 1e-6:
+            cr.arc(cx, cy, r, 0, TAU)
+        elif self.phase > 1e-6:
+            _lit_path(cr, cx, cy, r, self.phase)
+        else:
+            cr.new_path()
+        cr.set_source_rgb(0.93, 0.86, 0.62)
+        cr.fill()
+        if self.current:
+            cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.9)
+            cr.set_line_width(1.5)
+            cr.arc(cx, cy, min(w, h) * 0.44, 0, TAU)
+            cr.stroke()
+
+
 def _rounded(cr, x, y, w, h, rad):
     cr.new_sub_path()
     cr.arc(x + w - rad, y + rad, rad, -math.pi / 2, 0)

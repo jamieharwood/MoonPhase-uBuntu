@@ -10,22 +10,38 @@ It shows the same astronomy data, but as a desktop app instead of a server and b
 
 | Card | Contents |
 |---|---|
-| 🌙 **Moon Phase** | Phase name, a drawn moon with a live terminator and twinkling stars (or the original ASCII art), illumination %, age, days to full moon, Earth–Moon distance |
-| ☀️ **Solar System** | Mercury → Pluto distance from the Sun with light travel time, plus Earth→Mars/Jupiter/Saturn |
-| 🚀 **Deep Space Probes** | Hubble, James Webb, Voyager 1 & 2, New Horizons, light time to the Voyagers |
-| 🌍 **Earth** | Orbital speed, daylight hours, sunrise/sunset (UTC), axial tilt, NOAA aurora Kp index |
-| 📅 **Upcoming Events** | Full moon, solstices, perihelion and aphelion, sorted by days remaining |
-| 🛰️ **LEO** | ISS / Tiangong / Hubble altitudes from live TLEs, Starlink and Kuiper counts, total objects in orbit, ISS crew |
-| 👨‍🚀 **People in Space** | Number of people on each spacecraft (★ = docked to ISS) |
+| 🌙 **Moon Phase** | Illumination %, phase name, a drawn moon with a live terminator and twinkling stars (or the original ASCII art), progress through the lunar cycle with a phase strip, the exact dates of the next new and full moon, Earth–Moon distance |
+| ☀️ **Solar System** | Mercury → Pluto distance from the Sun with light travel time |
+| 🌍 **Earth** | Orbital speed, daylight hours, sunrise/sunset (UTC), axial tilt, NOAA aurora Kp index, location |
+| 🛰️ **Near Earth** | ISS / Tiangong / Hubble altitudes from live TLEs, Starlink and Kuiper counts, total objects in orbit, people on each spacecraft (★ = aboard the ISS) |
+| 🚀 **Deep Space** | James Webb (live from JPL Horizons), Voyager 1 & 2 and New Horizons, as distances from Earth |
+| 📅 **Upcoming Events** | Solstices, perihelion and aphelion, sorted by days remaining |
 | 📊 **Historical Data** | Chart of any of the 35 stored metrics over 7 days to all time, CSV export, *Populate Past* backfill, reset |
 
 Other features:
 
-- **Units**: AU, km or miles (the header dropdown).
-- **Refresh**: the button, <kbd>F5</kbd> or <kbd>Ctrl</kbd>+<kbd>R</kbd>. Calculated values update every minute. Live feeds are re-fetched every 15 minutes and at 00:01 and 12:01 UTC, as in the original. Cached results are kept (Kp for 15 minutes, LEO for 6 hours).
+- **Units**: AU, km or miles (the header dropdown) for Solar System and Deep Space distances. Near-Earth values (the Moon, orbit altitudes, James Webb) are always in km or miles, never AU.
+- **Refresh**: the button, <kbd>F5</kbd> or <kbd>Ctrl</kbd>+<kbd>R</kbd>. Calculated values update every minute. Live feeds are re-fetched every 15 minutes and at 00:01 and 12:01 UTC, as in the original. Cached results are kept (Kp for 15 minutes, James Webb for 1 hour, LEO for 6 hours).
 - **Desktop notifications** for geomagnetic storms (Kp ≥ 5) and for the full moon tonight or tomorrow, at most once every 6 hours per alert.
 - **Awtrix clock push** (optional): sends the same `/api/custom` metrics as the original.
 - **Preferences** (<kbd>Ctrl</kbd>+<kbd>,</kbd>): location, history storage, retention, notifications, Awtrix.
+
+## Accuracy
+
+The calculations are the same as the web app's and are checked against
+[JPL Horizons](https://ssd.jpl.nasa.gov/horizons/) by `tests/test_astro.py`, using the
+same reference values:
+
+| Quantity | Method | Typical error vs Horizons |
+|---|---|---|
+| Planet distances (Sun and Earth) | JPL Keplerian element tables, full 3-D Kepler solution | ≤ 0.2 % |
+| Moon distance | Lunar orbit plus principal perturbations | ≤ ~600 km |
+| Moon illumination / phase | True Sun–Moon elongation | < 0.1 %; new/full moon within minutes |
+| Voyager 1 & 2, New Horizons | Two-body motion from Horizons state vectors (2026) | ≤ 0.02 AU, 2020–2035 |
+| James Webb | Fetched live from Horizons (its L2 halo orbit can't be modelled offline) | exact; "—" when offline |
+| Sunrise, sunset, day length | NOAA solar position with standard refraction | ≈ 1–2 min |
+
+Historical snapshots (*Populate Past*) can't reconstruct James Webb, so it isn't stored.
 
 ## Install
 
@@ -58,8 +74,8 @@ cd MoonPhase-uBuntu
 ### Option 3: Debian package
 
 ```bash
-packaging/build-deb.sh                                  # → dist/moonphase-ubuntu_1.0.0_all.deb
-sudo apt install ./dist/moonphase-ubuntu_1.0.0_all.deb
+packaging/build-deb.sh                                  # → dist/moonphase-ubuntu_1.1.0_all.deb
+sudo apt install ./dist/moonphase-ubuntu_1.1.0_all.deb
 moonphase-ubuntu                                        # or launch "MoonPhase" from the app grid
 ```
 
@@ -95,7 +111,7 @@ Layout:
 
 ```
 moonphase/astro.py      deterministic calculations (ported from MoonPhaseModule/*.java)
-moonphase/fetchers.py   NOAA Kp, TLE API, people-in-space feeds (stdlib urllib, cached)
+moonphase/fetchers.py   NOAA Kp, JPL Horizons (JWST), TLE API, people-in-space feeds (stdlib urllib, cached)
 moonphase/history.py    SQLite / MongoDB snapshot stores, CSV, backfill
 moonphase/awtrix.py     optional Awtrix push
 moonphase/widgets.py    pycairo-drawn moon and history chart
@@ -109,13 +125,12 @@ install.sh              per-user installer
 ### Differences from the web app
 
 - No embedded web server, REST API, SSE or PWA. It runs as a desktop app instead.
-- The Claude moon-phase cross-check is not included; the deterministic formula was
-  always the value shown anyway.
-- The Solar System card lists every planet by distance from the Sun. Earth→Mars,
-  Jupiter and Saturn distances get their own rows; the web table mixed the two kinds.
 - Requests to the TLE API are sent one at a time, because it rejects concurrent
   requests with HTTP 508.
 
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+The Barlow fonts in `store-src/`, used only to draw the store graphics, are under the
+SIL Open Font License 1.1 ([store-src/FONT-LICENSE-OFL.txt](store-src/FONT-LICENSE-OFL.txt)).

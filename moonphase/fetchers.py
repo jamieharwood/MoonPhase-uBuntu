@@ -1,9 +1,10 @@
-"""Live data from public APIs (port of AuroraKpFetcher / LeoDataFetcher).
+"""Live data from public APIs (port of AuroraKpFetcher / LeoDataFetcher /
+JamesWebbDistance).
 
 Uses only the standard library.  Every fetch fails soft: on any error the
 value is -1 (or an empty mapping) so the UI can show "—".  Results are cached
-in memory: Kp for 15 minutes, LEO / crew data for 6 hours, matching the
-original application.
+in memory: Kp for 15 minutes, JWST for 1 hour, LEO / crew data for 6 hours,
+matching the original application.
 """
 
 from __future__ import annotations
@@ -13,9 +14,11 @@ import logging
 import math
 import threading
 import time
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger(__name__)
 
@@ -26,12 +29,15 @@ TLE_URL = "https://tle.ivanstanojevic.me/api/tle/{}"
 GROUP_URL = "https://tle.ivanstanojevic.me/api/tle/?search={}&page-size=1"
 TOTAL_URL = "https://tle.ivanstanojevic.me/api/tle/?page-size=1"
 CREW_URL = "https://corquaid.github.io/international-space-station-APIs/JSON/people-in-space.json"
+HORIZONS_URL = "https://ssd.jpl.nasa.gov/api/horizons.api"
 
 ISS_NORAD, TIANGONG_NORAD, HUBBLE_NORAD = 25544, 48274, 20580
 GM_EARTH = 3.986004418e14
 EARTH_RADIUS_KM = 6371.0
 
 KP_TTL = 15 * 60
+JWST_TTL = 60 * 60
+KM_PER_AU = 149_597_870.7
 LEO_TTL = 6 * 60 * 60
 
 
@@ -64,6 +70,41 @@ def altitude_from_tle_line2(line2: str) -> float:
     period = 86400.0 / mean_motion
     sma_m = (GM_EARTH * (period / (2 * math.pi)) ** 2) ** (1.0 / 3.0)
     return sma_m / 1000.0 - EARTH_RADIUS_KM
+
+
+def jwst_url(now: datetime) -> str:
+    """JPL Horizons observer query: JWST (target -170) range from Earth's centre."""
+    fmt = "%Y-%m-%d %H:%M"
+    params = {
+        "format": "json",
+        "COMMAND": "'-170'",
+        "OBJ_DATA": "'NO'",
+        "MAKE_EPHEM": "'YES'",
+        "EPHEM_TYPE": "'OBSERVER'",
+        "CENTER": "'500@399'",
+        "START_TIME": f"'{now.strftime(fmt)}'",
+        "STOP_TIME": f"'{(now + timedelta(minutes=1)).strftime(fmt)}'",
+        "STEP_SIZE": "'1m'",
+        "QUANTITIES": "'20'",
+        "CSV_FORMAT": "'YES'",
+    }
+    return HORIZONS_URL + "?" + urllib.parse.urlencode(params)
+
+
+def parse_jwst_km(data) -> float:
+    """Observer range (delta, AU) from a Horizons JSON response, in km.
+
+    The ephemeris row looks like `` 2026-Nov-27 23:28, , ,  0.01136300827198,  0.0069837,``.
+    """
+    try:
+        result = data.get("result", "")
+        soe, eoe = result.index("$$SOE"), result.index("$$EOE")
+        row = result[soe + 5:eoe].strip().splitlines()[0]
+        delta_au = float(row.split(",")[3].strip())
+    except (AttributeError, ValueError, IndexError):
+        log.warning("unexpected JPL Horizons response for JWST")
+        return -1.0
+    return delta_au * KM_PER_AU if delta_au > 0 else -1.0
 
 
 @dataclass
@@ -113,11 +154,13 @@ class LiveData:
     def __init__(self):
         self._lock = threading.Lock()
         self._kp: tuple[float, float] | None = None
+        self._jwst: tuple[float, float] | None = None
         self._leo: tuple[Leo, float] | None = None
 
     def clear(self):
         with self._lock:
             self._kp = None
+            self._jwst = None
             self._leo = None
 
     def kp(self) -> float:
@@ -126,6 +169,16 @@ class LiveData:
                 return self._kp[0]
             value = parse_latest_kp(_get_json(KP_URL))
             self._kp = (value, time.time())
+            return value
+
+    def jwst_km(self) -> float:
+        with self._lock:
+            if self._jwst and time.time() - self._jwst[1] < JWST_TTL:
+                return self._jwst[0]
+            value = parse_jwst_km(_get_json(jwst_url(datetime.now(timezone.utc)), 20))
+            # Only cache successes so a transient failure is retried next time.
+            if value > 0:
+                self._jwst = (value, time.time())
             return value
 
     def leo(self) -> Leo:
@@ -163,6 +216,7 @@ class LiveData:
 def apply_live(snapshot, live: LiveData) -> None:
     """Fill the network-sourced fields of an ``astro.Snapshot`` in place."""
     snapshot.auroraKpIndex = live.kp()
+    snapshot.jamesWebbDistanceKm = live.jwst_km()
     leo = live.leo()
     snapshot.issAltitudeKm = leo.iss_alt
     snapshot.tiangongAltitudeKm = leo.tiangong_alt
